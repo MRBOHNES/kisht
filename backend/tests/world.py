@@ -1,8 +1,12 @@
 """Small fixed data set for tests that must not depend on the 300-loan seed."""
+from datetime import datetime, time, timedelta
+from decimal import Decimal
+
 from sqlalchemy import text
 
+from app.clock import IST, today_ist
 from app.db import SessionLocal
-from app.models import Branch, Role, User
+from app.models import Borrower, Branch, Loan, LoanStatus, Role, User
 from app.security import hash_password
 
 PASSWORD = "correct-horse"
@@ -50,3 +54,27 @@ def good_row(loan_id="LN-1", pincode=PINCODE_A, dpd="12", **over) -> str:
     }
     cells.update(over)
     return ",".join(cells.values())
+
+
+async def add_loan(loan_id, officer_id, dpd=12, outstanding=200_000, paid_days_ago=20,
+                   status=LoanStatus.active, phone="9876543210", today=None):
+    today = today or today_ist()
+    async with SessionLocal() as s:
+        borrower = Borrower(business_name=f"Shop {loan_id}", business_type="dairy_shop", phone=phone,
+                            pincode=PINCODE_A, address="Sample address")
+        s.add(borrower)
+        await s.flush()
+        s.add(Loan(id=loan_id, borrower_id=borrower.id, branch_id=1, officer_id=officer_id,
+                   outstanding=Decimal(outstanding), emi=Decimal(10_000), dpd=dpd, status=status,
+                   last_payment_date=None if paid_days_ago is None else today - timedelta(days=paid_days_ago)))
+        await s.commit()
+
+
+async def add(*rows):
+    async with SessionLocal() as s:
+        s.add_all(rows)
+        await s.commit()
+
+
+def at_today(hour: int, minute: int = 0) -> datetime:
+    return datetime.combine(today_ist(), time(hour, minute), IST)

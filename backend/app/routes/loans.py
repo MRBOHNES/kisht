@@ -1,12 +1,16 @@
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.clock import today_ist
+from app.clock import current_time, today_ist
+from app.contact_window import BLOCKED_REASON, in_contact_window
 from app.db import get_session
-from app.deps import current_user
+from app.deps import current_user, require_role
 from app.loan_facts import load_facts
-from app.models import Borrower, ContactAttempt, Loan, Role, User
+from app.models import Borrower, ContactAttempt, ContactType, Loan, Role, User
 from app.scoring import score_loan
 
 router = APIRouter(prefix="/loans", tags=["loans"])
@@ -45,11 +49,42 @@ async def loan_detail(
             "self_cure": score.self_cure, "low_confidence": score.low_confidence,
             "reasons": [r.__dict__ for r in score.reasons],
         },
-        "contact_attempts": [
-            {"type": a.type.value, "at": a.at.isoformat(), "allowed": a.allowed, "blocked_reason": a.blocked_reason}
-            for a in attempts
-        ],
+        "contact_attempts": [attempt_out(a) for a in attempts],
     }
+
+
+class ContactIn(BaseModel):
+    type: ContactType
+
+
+@router.post("/{loan_id}/contact")
+async def contact_borrower(
+    loan_id: str,
+    body: ContactIn,
+    session: AsyncSession = Depends(get_session),
+    officer: User = Depends(require_role(Role.field_officer)),
+    now: datetime = Depends(current_time),
+):
+    """Every call or visit attempt is stored; outside the contact window it is blocked."""
+    loan = await session.get(Loan, loan_id)
+    if loan is None or loan.officer_id != officer.id:
+        raise HTTPException(404, "loan not found")
+    allowed = in_contact_window(now)
+    attempt = ContactAttempt(loan_id=loan.id, officer_id=officer.id, type=body.type, at=now, allowed=allowed,
+                             blocked_reason=None if allowed else BLOCKED_REASON)
+    session.add(attempt)
+    await session.commit()
+    if not allowed:
+        raise HTTPException(403, {"code": "outside_contact_hours", "message": BLOCKED_REASON,
+                                  "attempt": attempt_out(attempt)})
+    # the full number is only handed out for a call that is allowed right now
+    borrower = await session.get(Borrower, loan.borrower_id)
+    phone = borrower.phone if body.type == ContactType.call else None
+    return {"allowed": True, "attempt": attempt_out(attempt), "phone": phone}
+
+
+def attempt_out(a: ContactAttempt) -> dict:
+    return {"type": a.type.value, "at": a.at.isoformat(), "allowed": a.allowed, "blocked_reason": a.blocked_reason}
 
 
 def mask_phone(phone: str) -> str:

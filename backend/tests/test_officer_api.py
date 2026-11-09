@@ -1,44 +1,16 @@
 import uuid
-from datetime import datetime, time, timedelta
 from decimal import Decimal
 
 import pytest
 
-from app.clock import IST, today_ist
-from app.db import SessionLocal
-from app.models import (
-    Borrower, ContactAttempt, ContactType, Loan, LoanStatus, Outcome, OutcomeKind, Promise, PromiseStatus,
-)
-from tests.world import PASSWORD, PINCODE_A, reset_world
+from app.clock import today_ist
+from app.models import ContactAttempt, ContactType, LoanStatus, Outcome, OutcomeKind, Promise, PromiseStatus
+from tests.world import PASSWORD, add, add_loan, at_today, reset_world
 
 
 @pytest.fixture(autouse=True)
 async def world():
     return await reset_world()
-
-
-async def add_loan(loan_id, officer_id, dpd=12, outstanding=200_000, paid_days_ago=20,
-                   status=LoanStatus.active, phone="9876543210"):
-    today = today_ist()
-    async with SessionLocal() as s:
-        borrower = Borrower(business_name=f"Shop {loan_id}", business_type="dairy_shop", phone=phone,
-                            pincode=PINCODE_A, address="Sample address")
-        s.add(borrower)
-        await s.flush()
-        s.add(Loan(id=loan_id, borrower_id=borrower.id, branch_id=1, officer_id=officer_id,
-                   outstanding=Decimal(outstanding), emi=Decimal(10_000), dpd=dpd, status=status,
-                   last_payment_date=None if paid_days_ago is None else today - timedelta(days=paid_days_ago)))
-        await s.commit()
-
-
-async def add(*rows):
-    async with SessionLocal() as s:
-        s.add_all(rows)
-        await s.commit()
-
-
-def at_today(hour: int) -> datetime:
-    return datetime.combine(today_ist(), time(hour), IST)
 
 
 async def login(client, email):
