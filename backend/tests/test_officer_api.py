@@ -29,6 +29,8 @@ async def test_today_lists_only_own_active_loans_by_priority(client, world):
     assert body["loans"][0]["top_reason"]["key"] == "roll_risk"
     assert body["loans"][0]["top_reason"]["text_hi"]
     assert body["kpis"]["list_count"] == 2
+    # enough to log an outcome offline from the cached list
+    assert {"emi", "address", "pincode"} <= body["loans"][0].keys()
 
 
 async def test_today_is_for_officers_only(client):

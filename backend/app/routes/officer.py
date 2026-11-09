@@ -8,7 +8,9 @@ from app.clock import current_time, ist_date, ist_day_start, today_ist
 from app.db import get_session
 from app.deps import require_role
 from app.loan_facts import load_facts
-from app.models import Borrower, Loan, LoanStatus, Outcome, OutcomeKind, Promise, PromiseStatus, Role, User
+from app.models import (
+    Borrower, Loan, LoanStatus, Outcome, OutcomeKind, PriorityOverride, Promise, PromiseStatus, Role, User,
+)
 from app.promises import mark_broken
 from app.scoring import SCORING, priority_list
 
@@ -27,7 +29,14 @@ async def today_list(
     )).all()
     loans = {loan.id: (loan, borrower) for loan, borrower in rows}
     facts = await load_facts(session, [loan for loan, _ in rows], today)
+    # a manager's pin puts the loan first; a pin made for a previous officer no longer applies
+    pins = dict((await session.execute(
+        select(PriorityOverride.loan_id, PriorityOverride.reason)
+        .where(PriorityOverride.officer_id == officer.id, PriorityOverride.loan_id.in_(list(loans)))
+        .order_by(PriorityOverride.created_at)
+    )).all())
     scores = priority_list(list(facts.values()), today)
+    scores = [s for s in scores if s.loan_id in pins] + [s for s in scores if s.loan_id not in pins]
 
     promises_today = await session.scalar(
         select(func.count()).select_from(Promise).join(Loan, Loan.id == Promise.loan_id).where(
@@ -43,23 +52,29 @@ async def today_list(
         "officer_name": officer.name,
         "date": today.isoformat(),
         "kpis": {"list_count": len(scores), "promises_today": promises_today, "collected_today": float(collected_today)},
-        "loans": [loan_card(rank, s, *loans[s.loan_id]) for rank, s in enumerate(scores, start=1)],
+        "loans": [loan_card(rank, s, *loans[s.loan_id], pins.get(s.loan_id)) for rank, s in enumerate(scores, start=1)],
     }
 
 
-def loan_card(rank: int, score, loan: Loan, borrower: Borrower) -> dict:
+def loan_card(rank: int, score, loan: Loan, borrower: Borrower, pin_reason: str | None = None) -> dict:
     return {
         "rank": rank,
         "loan_id": loan.id,
         "business_name": borrower.business_name,
         "business_type": borrower.business_type,
         "outstanding": float(loan.outstanding),
+        # emi and address let the phone open the outcome sheet from this list while offline
+        "emi": float(loan.emi),
+        "address": borrower.address,
+        "pincode": borrower.pincode,
         "dpd": loan.dpd,
         "risk": score.risk,
         "priority": score.priority,
         "self_cure": score.self_cure,
         "low_confidence": score.low_confidence,
         "top_reason": score.reasons[0].__dict__ if score.reasons else None,
+        "pinned": pin_reason is not None,
+        "pin_reason": pin_reason,
     }
 
 
