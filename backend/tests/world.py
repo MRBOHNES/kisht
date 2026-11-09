@@ -35,3 +35,18 @@ async def reset_world() -> dict:
         await s.commit()
         return {k: u.id for k, u in users.items()}
 
+
+
+def csv_text(*rows: str) -> str:
+    header = "loan_id,business_name,business_type,phone,pincode,outstanding,emi,dpd,last_payment_date,address"
+    return "\n".join([header, *rows]) + "\n"
+
+
+def good_row(loan_id="LN-1", pincode=PINCODE_A, dpd="12", **over) -> str:
+    cells = {
+        "loan_id": loan_id, "name": "Shop", "type": "dairy_shop", "phone": "9876543210",
+        "pincode": pincode, "outstanding": "100000", "emi": "9000", "dpd": dpd,
+        "last": "2026-10-20", "address": "",
+    }
+    cells.update(over)
+    return ",".join(cells.values())
