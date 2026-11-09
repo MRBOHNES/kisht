@@ -11,6 +11,10 @@ REQUIRED_COLUMNS = [
 ]
 OPTIONAL_COLUMNS = ["address"]
 
+# match the database column sizes, so a long value is a row error rather than a failed import
+MAX_LOAN_ID, MAX_NAME, MAX_TYPE = 20, 120, 40
+MAX_AMOUNT = Decimal("9999999999.99")
+
 
 class MissingColumns(Exception):
     def __init__(self, missing: list[str]):
@@ -91,12 +95,16 @@ def validate_row(n: int, c: dict, known_pincodes: set[str], today: date):
     def fail(column: str, message: str, fix: str):
         errors.append(RowError(n, loan_id, column, message, fix))
 
-    if not re.fullmatch(r"LN-\d+", loan_id):
+    if not re.fullmatch(r"LN-\d+", loan_id) or len(loan_id) > MAX_LOAN_ID:
         fail("loan_id", f"'{loan_id}' is not a loan id", "Use the form LN-10293")
     if not c.get("business_name"):
         fail("business_name", "Business name is empty", "Fill in the borrower's business name")
+    elif len(c["business_name"]) > MAX_NAME:
+        fail("business_name", f"Business name is over {MAX_NAME} characters", "Shorten the business name")
     if not c.get("business_type"):
         fail("business_type", "Business type is empty", "Fill in a type such as fertiliser_shop")
+    elif len(c["business_type"]) > MAX_TYPE:
+        fail("business_type", f"Business type is over {MAX_TYPE} characters", "Use a short type such as fertiliser_shop")
 
     phone = re.sub(r"\D", "", c.get("phone", ""))
     if len(phone) == 12 and phone.startswith("91"):
@@ -111,11 +119,11 @@ def validate_row(n: int, c: dict, known_pincodes: set[str], today: date):
         fail("pincode", f"No branch serves pincode {pincode}", "Check the pincode, or ask your admin to add it to a branch")
 
     outstanding = parse_money(c.get("outstanding", ""))
-    if outstanding is None or outstanding <= 0:
-        fail("outstanding", f"'{c.get('outstanding', '')}' is not a positive amount", "Use a plain number such as 640000")
+    if outstanding is None or not 0 < outstanding <= MAX_AMOUNT:
+        fail("outstanding", f"'{c.get('outstanding', '')}' is not a valid amount", "Use a plain number such as 640000")
     emi = parse_money(c.get("emi", ""))
-    if emi is None or emi <= 0:
-        fail("emi", f"'{c.get('emi', '')}' is not a positive amount", "Use a plain number such as 53000")
+    if emi is None or not 0 < emi <= MAX_AMOUNT:
+        fail("emi", f"'{c.get('emi', '')}' is not a valid amount", "Use a plain number such as 53000")
 
     dpd = None
     if re.fullmatch(r"\d+", c.get("dpd", "")) and 1 <= int(c["dpd"]) <= 999:

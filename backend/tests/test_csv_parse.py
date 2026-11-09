@@ -84,3 +84,14 @@ def test_invalid_row_still_counts_as_seen():
 def test_invalid_rows_counted_once_per_row():
     result = parse(good_row(phone="bad", dpd="0"))
     assert len(result.errors) == 2 and result.invalid_rows == 1
+
+
+@pytest.mark.parametrize("override,field", [
+    ({"loan_id": "LN-" + "1" * 30}, "loan_id"),
+    ({"name": "x" * 121}, "business_name"),
+    ({"type": "x" * 41}, "business_type"),
+    ({"outstanding": "10000000000"}, "outstanding"),
+    ({"emi": "10000000000"}, "emi"),
+])
+def test_values_too_big_for_the_database_are_row_errors(override, field):
+    assert (2, field) in fields_with_errors(parse(good_row(**override)))
