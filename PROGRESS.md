@@ -1,20 +1,21 @@
 # Progress
 
 ## Done
-- Backend: FastAPI, SQLAlchemy models, 2 Alembic migrations, health endpoint, Dockerfile, CI (green)
-- Auth: login with httpOnly cookie, role checks, 15 minute lockout after 5 failures
-- CSV import: per-row validation, pincode/workload assignment, loans missing from the file marked cured
-- Seed script (brief rows exact, ~22% roll rate) and sample CSVs in sample-data/
-- 52 backend tests passing
+- Backend: FastAPI, models, migrations, health endpoint, Dockerfile, CI
+- Auth: httpOnly cookie, role checks, 15 minute lockout; review fixes for import crashes, bcrypt length and insecure defaults
+- CSV import with per-row validation, pincode/workload assignment and the cured rule; seed and sample CSVs
+- Priority score (pure function, boundary tests), officer Today list and loan detail with ownership checks
+- Group 1: outcome logging in 3 taps with server-side validation, contact window enforced on the server (calls blocked and recorded), Call and Map buttons, promise kept/broken rules, promises screen with tabs, bottom tab bar
+- Officer screens: login, Today, loan detail, outcome sheet, promises (Hindi default, English toggle)
 
-## In progress
-- Frontend: Next.js scaffold exists; officer and manager login screens and the import screen are not built yet
+## Next
+- Group 2: offline outbox and /sync, sync screen
+- Group 3: manager login, import screen, roll-rate view, pins
 
 ## Decisions
 - Podman Postgres locally, uv with Python 3.13, monorepo (backend/ on Render, frontend/ on Vercel)
 - Vercel rewrites /api to the backend so the session cookie stays first-party
-- Manager sees all branches; officers only their own loans
-- Re-import updates figures and keeps the officer; cured loans keep their history
+- See docs/assumptions.md for everything not in the brief
 
-## Next
-- Frontend login and import screens, then the scoring module and officer priority list
+## Notes
+- Commit e403941 says "logins, import screen and hindi/english strings" but only contains the Next.js scaffold; the login and strings came in 6fe1ba7. History left as is.
