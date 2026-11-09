@@ -135,3 +135,11 @@ async def test_officer_cannot_import_csv(client):
 
 async def test_import_requires_login(client):
     assert (await upload(client, good_row())).status_code == 401
+
+
+async def test_file_with_no_valid_rows_cures_nothing(manager):
+    await upload(manager, good_row("LN-1"), good_row("LN-2"))
+    body = (await upload(manager, good_row("LN 1"), good_row("", phone="bad"))).json()
+    assert body["cured"] == 0 and body["not_imported"] == 2
+    assert {l.status for l in (await loans_by_id()).values()} == {LoanStatus.active}
+

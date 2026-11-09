@@ -61,11 +61,13 @@ async def run_import(session: AsyncSession, parsed: ParseResult, branches: list[
         summary.new_by_officer[officer.id] += 1
         summary.created += 1
 
-    cured = await session.execute(
-        update(Loan).where(Loan.status != LoanStatus.cured, Loan.id.not_in(parsed.seen_ids))
-        .values(status=LoanStatus.cured)
-    )
-    summary.cured = cured.rowcount
+    # a file with no usable rows is a wrong file, not "nothing is overdue today"
+    if parsed.valid:
+        cured = await session.execute(
+            update(Loan).where(Loan.status != LoanStatus.cured, Loan.id.not_in(parsed.seen_ids))
+            .values(status=LoanStatus.cured)
+        )
+        summary.cured = cured.rowcount
     await session.flush()
     return summary
 
