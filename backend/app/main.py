@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.db import get_session
-from app.routes import auth, imports, loans, officer
+from app.routes import auth, imports, loans, officer, outcomes
 
 app = FastAPI(title="Kisht")
 app.add_middleware(
@@ -20,6 +20,7 @@ app.include_router(auth.router)
 app.include_router(imports.router)
 app.include_router(officer.router)
 app.include_router(loans.router)
+app.include_router(outcomes.router)
 
 
 @app.get("/health")
