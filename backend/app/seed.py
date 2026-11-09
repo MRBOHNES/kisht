@@ -57,6 +57,14 @@ BRIEF_LOANS = [
     ("LN-10871", "Company C", "fertiliser_shop", 310000, 27, "neha@demo.in", None),
     ("LN-11930", "Company D", "printing_press", 220000, 19, "imran@demo.in", (date(2026, 10, 31), "broken")),
 ]
+# ASSUMPTION: the brief gives no payment dates. Fixed so each row tells its story:
+# LN-10293 has not paid since before its 5 Nov promise, LN-10871 is days from rolling past 30,
+# LN-11930 has not paid since its promise of 31 Oct broke.
+BRIEF_LAST_PAYMENT = {
+    "LN-10293": date(2026, 9, 28),
+    "LN-10871": date(2026, 9, 13),
+    "LN-11930": date(2026, 9, 21),
+}
 NAMED_EXTRA = [
     ("Company E", "dairy_shop"), ("Company F", "textile_shop"), ("Company G", "hardware_store"),
     ("Company H", "food_stall"), ("Company I", "auto_parts"), ("Company J", "stationery_shop"),
@@ -145,6 +153,7 @@ async def seed(today: date | None = None) -> None:
 
             never_paid = idx >= len(BRIEF_LOANS) and rng.random() < 0.06
             last_paid = None if never_paid else today - timedelta(days=rng.randint(3, 75))
+            last_paid = BRIEF_LAST_PAYMENT.get(loan_id, last_paid)
             loan = Loan(
                 id=loan_id, borrower_id=borrower.id, branch_id=branch.id, officer_id=officer.id,
                 outstanding=Decimal(outstanding), emi=Decimal(round(outstanding / 12, -2)),

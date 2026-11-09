@@ -62,3 +62,10 @@ async def test_seed_counts():
         users = await s.scalar(select(func.count()).select_from(User))
     assert loans == 300
     assert users == 12
+
+
+async def test_brief_rows_have_fixed_last_payment_dates():
+    await seed(TODAY)
+    async with SessionLocal() as s:
+        dates = {i: (await s.get(Loan, i)).last_payment_date for i in ("LN-10293", "LN-10871", "LN-11930")}
+    assert dates == {"LN-10293": date(2026, 9, 28), "LN-10871": date(2026, 9, 13), "LN-11930": date(2026, 9, 21)}
