@@ -29,7 +29,9 @@ async def import_overdue_csv(
         raise HTTPException(400, {"code": "not_utf8"})
 
     branches = (await session.scalars(select(Branch))).all()
-    known_pincodes = {p for b in branches for p in b.pincodes}
+    # a branch with no field officer has nobody to assign new loans to
+    staffed = set((await session.scalars(select(User.branch_id).where(User.role == Role.field_officer))).all())
+    known_pincodes = {p for b in branches if b.id in staffed for p in b.pincodes}
     try:
         parsed = parse_csv(text, known_pincodes, date.today())
     except MissingColumns as e:
