@@ -4,17 +4,20 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { useLang } from "@/lib/i18n";
+import { useOutbox } from "@/lib/outbox";
 import type { StringKey } from "@/lib/strings";
 
 // Only pages that exist get a tab
 const TABS: { href: string; label: StringKey }[] = [
   { href: "/today", label: "navToday" },
   { href: "/promises", label: "navPromises" },
+  { href: "/sync", label: "navSync" },
 ];
 
 export function BottomTabs() {
   const { t } = useLang();
   const path = usePathname();
+  const pending = useOutbox().filter((item) => item.state === "pending").length;
   return (
     <nav className="fixed inset-x-0 bottom-0 border-t border-line bg-card">
       <ul className="mx-auto flex w-full max-w-[420px]">
@@ -28,6 +31,9 @@ export function BottomTabs() {
                 className={`flex min-h-14 items-center justify-center text-sm font-medium ${active ? "text-accent" : "text-muted"}`}
               >
                 {t(tab.label)}
+                {tab.href === "/sync" && pending > 0 && (
+                  <span className="ml-1 rounded-full bg-amber-bg px-2 text-xs text-amber">{pending}</span>
+                )}
               </Link>
             </li>
           );
