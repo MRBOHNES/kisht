@@ -10,3 +10,12 @@ def today_ist() -> date:
 
 def ist_day_start(day: date) -> datetime:
     return datetime.combine(day, datetime.min.time(), IST)
+
+
+def current_time() -> datetime:
+    """FastAPI dependency, so tests can pin the clock."""
+    return datetime.now(timezone.utc)
+
+
+def ist_date(at: datetime) -> date:
+    return at.astimezone(IST).date()
