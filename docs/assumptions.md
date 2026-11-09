@@ -26,6 +26,23 @@ Anything here is not stated in the client brief. It was decided for this build a
 - Promise default date is today + 3 days. A promise date must be between the day it was logged and 30 days after.
 - A promise is kept by any payment logged on or before its date (partial payments count). It is broken once its date passes with no payment. A payment that reaches the server late still keeps a promise it met in time.
 
+## Manager view
+- Roll rate: of the loans 1 to 30 days past due in one month's snapshot, the share above 30 in the next. A loan missing from the next snapshot counts as not rolled. Target 16%.
+- The seed has four monthly snapshots, so the dashboard shows three month-to-month roll rates. The CSV import does not write snapshots; a real system would take one at each month end.
+- "Visits logged same day": share of outcomes in the last 30 days that reached the server on the day they were logged (India time). Target 95%.
+- "Untouched": active loans with no outcome and no call attempt in the last 7 days.
+- "About to roll": active loans at 25 to 30 days past due, largest outstanding first.
+- A pin puts the loan first in its officer's list with the manager's reason. If the loan moves to another officer, the pin no longer applies. Only one pin per loan.
+- The roll-rate card on the manager login page is an illustration with sample numbers; real figures need sign-in.
+- Import error messages ("problem" and "how to fix") come from the server in English only.
+
+## Offline
+- Outcomes are saved to the phone (IndexedDB) first and sent in batches of up to 100. The server ignores a repeated outcome id.
+- The contact window is checked against the time on the phone when the outcome was logged, not when it reached the server.
+- The Today list, promises and opened loans are kept on the phone for offline reading and removed on sign-out. Unsent outcomes stay on the phone after sign-out; if a different officer signs in on that phone, the server rejects them because the loans are not theirs.
+- A service worker keeps visited pages openable offline. It never caches API responses. A page never opened online shows a short offline notice.
+- Logging an outcome from the Today list works offline. Opening a loan's detail offline works only if it was opened online before.
+
 ## Seed data
 - Branch names (Vijay Nagar, Palasia, Rajwada) are real Indore areas; pincodes are sample.
 - Rahul Chouhan, Neha Solanki and Imran Qureshi are from the brief. The other seven officers, both managers, companies E to K and all generated traders are sample data.
