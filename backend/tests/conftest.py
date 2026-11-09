@@ -7,6 +7,8 @@ os.environ["DATABASE_URL"] = os.environ.get(
 )
 os.environ.setdefault("SEED_PASSWORD", "test-only-pass")
 os.environ.setdefault("JWT_SECRET", "test-secret-test-secret-test-secret-0123")
+# the test client talks plain http, which never sends Secure cookies
+os.environ.setdefault("COOKIE_SECURE", "false")
 
 import pytest
 from httpx import ASGITransport, AsyncClient
