@@ -79,3 +79,8 @@ async def test_lock_lasts_fifteen_minutes(client):
         remaining = user.locked_until - datetime.now(timezone.utc)
     assert timedelta(minutes=14) < remaining <= timedelta(minutes=15)
 
+
+
+async def test_password_longer_than_bcrypt_limit_is_a_normal_failure(client):
+    assert (await login(client, password="x" * 80)).status_code == 401
+    assert (await login(client, email="ghost@t.in", password="पासवर्ड" * 10)).status_code == 401
