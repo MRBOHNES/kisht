@@ -1,15 +1,18 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { useState } from "react";
 
 import { BottomTabs } from "@/components/BottomTabs";
 import { LangToggle } from "@/components/LangToggle";
 import { LoanCard, type LoanCardData } from "@/components/LoanCard";
+import { SheetBody } from "@/components/OutcomeSheet";
+import { PendingBanner } from "@/components/PendingBanner";
 import { EmptyState, ErrorState, Skeleton } from "@/components/States";
 import { StatusChips } from "@/components/StatusChips";
-import { api, useApi } from "@/lib/api";
+import { api, clearReadCache, useApi } from "@/lib/api";
 import { useLang } from "@/lib/i18n";
-import { formatRupees } from "@/lib/strings";
+import { formatRupees, formatTime } from "@/lib/strings";
 
 type TodayData = {
   officer_name: string;
@@ -18,12 +21,15 @@ type TodayData = {
 };
 
 export default function TodayPage() {
-  const { t } = useLang();
+  const { t, lang } = useLang();
   const router = useRouter();
-  const { data, error, loading, reload } = useApi<TodayData>("/officer/today");
+  const { data, error, loading, reload, savedAt } = useApi<TodayData>("/officer/today", true);
+  // the sheet opens over the list, so logging works offline without loading another page
+  const [logging, setLogging] = useState<LoanCardData | null>(null);
 
   async function signOut() {
     await api("/auth/logout", { method: "POST" }).catch(() => undefined);
+    clearReadCache();
     router.replace("/login");
   }
 
@@ -43,6 +49,10 @@ export default function TodayPage() {
       <div className="mt-2">
         <StatusChips />
       </div>
+      <PendingBanner />
+      {savedAt && !loading && (
+        <p className="mt-2 rounded-xl bg-amber-bg p-3 text-sm text-amber">{t("offlineCached", { time: formatTime(savedAt, lang) })}</p>
+      )}
 
       {loading && <TodaySkeleton />}
       {error !== undefined && !loading && (
@@ -64,7 +74,7 @@ export default function TodayPage() {
             <ol className="flex flex-col gap-3">
               {data.loans.map((loan) => (
                 <li key={loan.loan_id}>
-                  <LoanCard loan={loan} />
+                  <LoanCard loan={loan} onLog={() => setLogging(loan)} />
                 </li>
               ))}
             </ol>
@@ -72,6 +82,26 @@ export default function TodayPage() {
         </>
       )}
       <BottomTabs />
+      {logging && (
+        <div className="fixed inset-0 z-20 bg-ink/40" role="dialog" aria-modal="true" aria-label={t("logOutcome")}>
+          <div className="absolute inset-x-0 bottom-0 max-h-[92vh] overflow-y-auto rounded-t-2xl bg-bg">
+            <div className="mx-auto w-full max-w-[420px] px-4 pb-6">
+              <div className="flex justify-end">
+                <button type="button" onClick={() => setLogging(null)} className="min-h-12 px-3 text-sm font-medium text-accent">
+                  {t("close")}
+                </button>
+              </div>
+              <SheetBody
+                loan={logging}
+                onDone={() => {
+                  setLogging(null);
+                  reload();
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

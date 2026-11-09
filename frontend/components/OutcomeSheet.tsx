@@ -1,19 +1,18 @@
 "use client";
 
-import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState, useSyncExternalStore } from "react";
 
 import { ErrorState, Skeleton } from "@/components/States";
-import { ApiError, api, useApi } from "@/lib/api";
+import { ApiError, cachedValue, useApi } from "@/lib/api";
 import { addDays, istToday } from "@/lib/dates";
 import { useContactHoursOpen } from "@/lib/hooks";
 import { useLang } from "@/lib/i18n";
 import { mapsUrl } from "@/lib/maps";
-import { businessLabel, formatDate, formatRupees, type StringKey } from "@/lib/strings";
+import { deleteItem, putItem, syncOutbox, type OutcomeKind as Kind } from "@/lib/outbox";
+import { businessLabel, formatDate, formatRupees, rejectionReason, type StringKey } from "@/lib/strings";
 
-type Kind = "paid" | "promise" | "not_reachable" | "dispute";
-type Loan = {
+export type SheetLoan = {
   loan_id: string;
   business_name: string;
   business_type: string;
@@ -33,30 +32,30 @@ const KINDS: { kind: Kind; label: StringKey; tone: string }[] = [
 const DATE_CHOICES = [1, 3, 7];
 const DEFAULT_PROMISE_DAYS = 3;
 
-const REJECTION_REASONS: Record<string, StringKey> = {
-  promise_date_past: "reasonPromiseDatePast",
-  promise_date_too_far: "reasonPromiseDateTooFar",
-  logged_in_future: "reasonLoggedInFuture",
-};
-
 export function OutcomeSheet() {
   const { id } = useParams<{ id: string }>();
   const { t } = useLang();
   const router = useRouter();
-  const { data, error, loading, reload } = useApi<Loan>(`/loans/${encodeURIComponent(id)}`);
+  const { data, error, loading, reload } = useApi<SheetLoan>(`/loans/${encodeURIComponent(id)}`, true);
+  // offline and never opened before: the cached Today list has what the sheet needs
+  const fromToday =
+    error !== undefined && !(error instanceof ApiError)
+      ? cachedValue<{ loans: SheetLoan[] }>("/officer/today")?.loans.find((l) => l.loan_id === id)
+      : undefined;
+  const loan = data ?? fromToday;
   return (
     <main className="pt-4 pb-8">
       <button type="button" onClick={() => router.back()} className="min-h-12 pr-4 text-sm font-medium text-accent">
         ← {t("back")}
       </button>
       {loading && <SheetSkeleton />}
-      {error !== undefined && !loading && <ErrorState message={t("errLoad")} onRetry={reload} />}
-      {data && !loading && <SheetBody loan={data} />}
+      {error !== undefined && !loading && !loan && <ErrorState message={t("errLoad")} onRetry={reload} />}
+      {loan && !loading && <SheetBody loan={loan} onDone={() => router.push("/today")} />}
     </main>
   );
 }
 
-function SheetBody({ loan }: { loan: Loan }) {
+export function SheetBody({ loan, onDone }: { loan: SheetLoan; onDone: () => void }) {
   const { t, lang } = useLang();
   const hoursOpen = useContactHoursOpen();
   const gps = useGps();
@@ -70,7 +69,7 @@ function SheetBody({ loan }: { loan: Loan }) {
   const [otherDate, setOtherDate] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const [saved, setSaved] = useState<{ outOfWindow: boolean } | null>(null);
+  const [saved, setSaved] = useState<{ queued: boolean; outOfWindow: boolean } | null>(null);
 
   const needsAmount = kind === "paid" || kind === "promise";
   const amount =
@@ -79,32 +78,45 @@ function SheetBody({ loan }: { loan: Loan }) {
   const canSave =
     kind !== null && !saving && (!needsAmount || amount > 0) && (kind !== "promise" || promiseDate !== "");
 
+  // Saved on the phone first, then sent; without network it waits in the outbox.
   async function save() {
     if (!kind) return;
     setSaving(true);
     setError("");
     try {
-      const result = await api<{ out_of_window: boolean }>("/outcomes", {
-        method: "POST",
-        body: JSON.stringify({
-          id: outcomeId,
-          loan_id: loan.loan_id,
-          kind,
-          amount: needsAmount ? Math.round(amount * 100) / 100 : null,
-          promise_date: kind === "promise" ? promiseDate : null,
-          lat: gps.state === "found" ? gps.lat : null,
-          lng: gps.state === "found" ? gps.lng : null,
-          logged_at_device: new Date().toISOString(),
-        }),
+      await putItem({
+        id: outcomeId,
+        loan_id: loan.loan_id,
+        kind,
+        amount: needsAmount ? Math.round(amount * 100) / 100 : null,
+        promise_date: kind === "promise" ? promiseDate : null,
+        lat: gps.state === "found" ? gps.lat : null,
+        lng: gps.state === "found" ? gps.lng : null,
+        logged_at_device: new Date().toISOString(),
+        business_name: loan.business_name,
+        business_type: loan.business_type,
+        state: "pending",
+        out_of_window: null,
+        error_code: null,
+        synced_at: null,
       });
-      setSaved({ outOfWindow: result.out_of_window });
-    } catch (e) {
-      if (e instanceof ApiError) {
-        const code = (e.detail as { code?: string } | undefined)?.code ?? "";
-        setError(t("errSaveRejected", { reason: t(REJECTION_REASONS[code] ?? "reasonCheck") }));
+    } catch {
+      setError(t("errStorage"));
+      setSaving(false);
+      return;
+    }
+    const queued = { queued: true, outOfWindow: hoursOpen === false };
+    try {
+      const result = navigator.onLine ? (await syncOutbox()).get(outcomeId) : undefined;
+      if (result?.status === "rejected") {
+        // not stored by the server: take it off the phone so the officer can correct and save again
+        await deleteItem(outcomeId);
+        setError(t("errSaveRejected", { reason: t(rejectionReason(result.code)) }));
       } else {
-        setError(t("errSaveNetwork"));
+        setSaved(result ? { queued: false, outOfWindow: Boolean(result.out_of_window) } : queued);
       }
+    } catch {
+      setSaved(queued);
     } finally {
       setSaving(false);
     }
@@ -129,11 +141,13 @@ function SheetBody({ loan }: { loan: Loan }) {
 
       {saved ? (
         <section className="card p-5 text-center" role="status">
-          <p className="text-lg font-semibold text-green">{t("savedTitle")}</p>
+          <p className={`text-lg font-semibold ${saved.queued ? "text-amber" : "text-green"}`}>
+            {saved.queued ? t("savedOnPhone") : t("savedTitle")}
+          </p>
           {saved.outOfWindow && <p className="mt-2 text-sm text-amber">{t("savedOutOfWindow")}</p>}
-          <Link href="/today" className="mt-4 flex min-h-12 items-center justify-center rounded-xl bg-accent font-medium text-white">
+          <button type="button" onClick={onDone} className="mt-4 min-h-12 w-full rounded-xl bg-accent font-medium text-white">
             {t("backToToday")}
-          </Link>
+          </button>
         </section>
       ) : (
         <section className="card p-4">

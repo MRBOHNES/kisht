@@ -14,12 +14,17 @@ export type LoanCardData = {
   business_name: string;
   business_type: string;
   outstanding: number;
+  emi: number;
+  address: string;
+  pincode: string;
   dpd: number;
   low_confidence: boolean;
   top_reason: Reason | null;
+  pinned: boolean;
+  pin_reason: string | null;
 };
 
-export function LoanCard({ loan }: { loan: LoanCardData }) {
+export function LoanCard({ loan, onLog }: { loan: LoanCardData; onLog: () => void }) {
   const { t, lang } = useLang();
   const reason = loan.top_reason ? (lang === "hi" ? loan.top_reason.text_hi : loan.top_reason.text_en) : "";
   const href = `/loan/${encodeURIComponent(loan.loan_id)}`;
@@ -38,6 +43,12 @@ export function LoanCard({ loan }: { loan: LoanCardData }) {
             <p className="mt-0.5 text-sm text-muted">
               {loan.loan_id} · {reason}
             </p>
+            {loan.pinned && (
+              <p className="mt-2 rounded-lg bg-accent/10 px-2 py-1 text-xs text-accent">
+                <span className="font-medium">{t("pinnedByManager")}</span>
+                {loan.pin_reason && ` · ${loan.pin_reason}`}
+              </p>
+            )}
             {loan.low_confidence && (
               <span className="mt-2 inline-block rounded-full bg-amber-bg px-2 py-0.5 text-xs font-medium text-amber">
                 {t("lowConfidence")}
@@ -50,9 +61,9 @@ export function LoanCard({ loan }: { loan: LoanCardData }) {
         </div>
       </Link>
       <div className="border-t border-line px-4 py-2">
-        <Link href={`${href}/log`} className="flex min-h-12 items-center justify-center rounded-xl text-sm font-medium text-accent">
+        <button type="button" onClick={onLog} className="flex min-h-12 w-full items-center justify-center rounded-xl text-sm font-medium text-accent">
           {t("logOutcome")}
-        </Link>
+        </button>
       </div>
     </div>
   );

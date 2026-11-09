@@ -5,6 +5,7 @@ import { useState } from "react";
 
 import { BottomTabs } from "@/components/BottomTabs";
 import { LangToggle } from "@/components/LangToggle";
+import { PendingBanner } from "@/components/PendingBanner";
 import { Sparkline } from "@/components/Sparkline";
 import { EmptyState, ErrorState, Skeleton } from "@/components/States";
 import { useApi } from "@/lib/api";
@@ -37,7 +38,7 @@ const TABS: { tab: Tab; label: StringKey; empty: StringKey; status: StringKey; t
 
 export default function PromisesPage() {
   const { t } = useLang();
-  const { data, error, loading, reload } = useApi<PromisesData>("/officer/promises");
+  const { data, error, loading, reload } = useApi<PromisesData>("/officer/promises", true);
   const [tab, setTab] = useState<Tab>("today");
   const current = TABS.find((x) => x.tab === tab)!;
 
@@ -47,6 +48,7 @@ export default function PromisesPage() {
         <h1 className="text-lg font-semibold">{t("promisesTitle")}</h1>
         <LangToggle />
       </header>
+      <PendingBanner />
 
       {loading && (
         <div className="mt-4 flex flex-col gap-3">

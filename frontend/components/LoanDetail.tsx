@@ -44,7 +44,7 @@ const MAX_FACTOR_POINTS = 35;
 export function LoanDetail() {
   const { id } = useParams<{ id: string }>();
   const { t } = useLang();
-  const { data, error, loading, reload } = useApi<Detail>(`/loans/${encodeURIComponent(id)}`);
+  const { data, error, loading, reload } = useApi<Detail>(`/loans/${encodeURIComponent(id)}`, true);
 
   return (
     <main className="pt-4 pb-28">
