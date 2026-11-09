@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 
+import { BottomTabs } from "@/components/BottomTabs";
 import { LangToggle } from "@/components/LangToggle";
 import { LoanCard, type LoanCardData } from "@/components/LoanCard";
 import { EmptyState, ErrorState, Skeleton } from "@/components/States";
@@ -27,7 +28,7 @@ export default function TodayPage() {
   }
 
   return (
-    <main className="pt-4">
+    <main className="pt-4 pb-20">
       <header className="flex items-center justify-between gap-2">
         <h1 className="text-lg font-semibold">
           {data ? t("greeting", { name: data.officer_name.split(" ")[0] }) : " "}
@@ -70,6 +71,7 @@ export default function TodayPage() {
           )}
         </>
       )}
+      <BottomTabs />
     </main>
   );
 }
